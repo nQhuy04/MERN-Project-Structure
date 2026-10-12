@@ -1,0 +1,1826 @@
+openapi: 3.1.0
+info:
+  title: MERN Base API
+  version: 0.1.0
+  description: |
+    API của source base MERN. Mọi route nằm dưới `/api/v1`.
+
+    **Response thành công**: `{ "success": true, "message"?: "...", "data": ... }`
+
+    **Response lỗi** (chỉ do `errorHandler` tạo):
+    `{ "success": false, "error": { "code", "message", "details"?: [{ "field", "message" }] } }`
+
+    Frontend rẽ nhánh theo `error.code` (không theo HTTP status hay message).
+
+    | code | HTTP | Ý nghĩa |
+    |---|---|---|
+    | VALIDATION_ERROR | 400 | Dữ liệu vào sai (Zod, Mongoose, ObjectId sai định dạng) |
+    | INVALID_JSON | 400 | Body không phải JSON hợp lệ |
+    | ROUTE_NOT_FOUND | 404 | Đường dẫn không tồn tại |
+    | RESOURCE_NOT_FOUND | 404 | Không tìm thấy dữ liệu |
+    | DUPLICATE_VALUE | 409 | Trùng giá trị unique |
+    | PAYLOAD_TOO_LARGE | 413 | Body vượt giới hạn |
+    | INTERNAL_ERROR | 500 | Lỗi không xác định (chi tiết chỉ có trong log server) |
+    | SERVICE_UNAVAILABLE | 503 | Phụ thuộc (database) không phản hồi |
+    | RATE_LIMITED | 429 | Vượt giới hạn số request (route auth theo IP; đổi mật khẩu theo user) |
+    | TOKEN_INVALID | 400 | Token trong link email sai, hết hạn hoặc đã dùng |
+    | INVALID_CREDENTIALS | 400 | Sai email hoặc mật khẩu (cùng một lỗi cho cả hai) |
+    | EMAIL_NOT_VERIFIED | 403 | Mật khẩu đúng nhưng tài khoản chưa kích hoạt |
+    | ACCOUNT_LOCKED | 403 | Tài khoản bị khoá (khi đăng nhập, hoặc ở request kế tiếp nếu bị khoá giữa chừng) |
+    | FORBIDDEN | 403 | Đã đăng nhập nhưng không đủ quyền |
+    | INVALID_CURRENT_PASSWORD | 400 | Sai mật khẩu hiện tại khi đổi mật khẩu (400, không phải 401) |
+    | PASSWORD_NOT_SET | 400 | Tài khoản chỉ dùng Google, chưa có mật khẩu để đổi |
+    | CANNOT_REVOKE_CURRENT_SESSION | 400 | Thu hồi phiên hiện tại qua API phiên (hãy dùng đăng xuất) |
+    | REGISTRATION_DISABLED | 403 | Super Admin đang tắt đăng ký tài khoản mới |
+    | FEATURE_DISABLED | 403 | Tính năng đang tắt (vd. magic link) |
+    | FEATURE_NOT_CONFIGURED | 404 | Dịch vụ tuỳ chọn chưa cấu hình biến môi trường (Google OAuth, R2) |
+    | OAUTH_* | — | Lỗi Google OAuth, trả về frontend qua `/auth/callback?error=CODE` (CANCELLED, STATE_INVALID, EMAIL_NOT_VERIFIED, FAILED) |
+    | CANNOT_MODIFY_SELF | 403 | Quản trị viên tự thao tác trên chính mình |
+    | CANNOT_MODIFY_SUPER_ADMIN | 403 | Thao tác trên / gán vai trò Super Admin |
+    | INSUFFICIENT_PERMISSION | 403 | Không đủ quyền với đối tượng này (vd. ADMIN khoá ADMIN) |
+    | USER_STATE_CHANGED | 409 | Dữ liệu user vừa bị người khác đổi — tải lại rồi thử lại |
+    | UPLOAD_NOT_FOUND | 400 | Báo upload xong nhưng chưa có object trên R2 |
+    | UPLOAD_MISMATCH | 400 | Object trên R2 khác dung lượng / loại đã khai báo (đã bị xoá) |
+    | MEDIA_IN_USE | 409 | Xoá ảnh đang được dùng — `details` là danh sách nơi dùng `{ label, href }` |
+    | FOLDER_EXISTS | 409 | Tạo thư mục trùng tên (kể cả tên thư mục hệ thống) |
+    | FOLDER_NOT_EMPTY | 409 | Xoá thư mục còn ảnh |
+    | STORAGE_QUOTA_EXCEEDED | 403 | Vượt quota số file / dung lượng của user |
+    | INVALID_AVATAR | 400 | Ảnh không dùng làm avatar được (không phải ảnh của mình trong folder avatars) |
+    | SYSTEM_JOB_PROTECTED | 403 | Xoá job hệ thống (chỉ được tạm dừng) |
+    | JOB_RUNNING | 409 | "Chạy ngay" / xoá khi job đang chạy |
+    | CSRF_REJECTED | 403 | Thiếu header `X-Requested-With: XMLHttpRequest` ở route dùng cookie |
+    | AUTH_TOKEN_INVALID | 401 | Access/refresh token sai (401 chỉ dùng cho lỗi token) |
+    | AUTH_TOKEN_EXPIRED | 401 | Access token hết hạn → frontend gọi refresh |
+
+    **Xác thực**: header `Authorization: Bearer <accessToken>` (JWT 15 phút). Refresh token
+    nằm trong cookie httpOnly `refresh_token` (path `/api/v1/auth`).
+servers:
+  - url: /api/v1
+    description: Cùng origin với Swagger UI (development)
+tags:
+  - name: System
+    description: Vận hành hệ thống
+  - name: Auth
+    description: Đăng ký, xác thực email, đăng nhập, phiên
+  - name: Users
+    description: Tài khoản của người đang đăng nhập
+  - name: Sessions
+    description: Thiết bị đang đăng nhập của chính người dùng
+  - name: Settings
+    description: Cấu hình hệ thống (công khai + quản trị bởi Super Admin)
+  - name: Admin Users
+    description: Quản lý người dùng (ADMIN / SUPER_ADMIN)
+  - name: Files
+    description: File cá nhân trên Cloudflare R2 (chưa cấu hình R2 → 404)
+  - name: Media
+    description: Ảnh hệ thống (avatar, thư viện ảnh quản trị) trên R2
+  - name: Jobs
+    description: Lịch tự động (quản trị chỉ SUPER_ADMIN)
+  - name: Stats
+    description: Số liệu tổng quan khu quản trị
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Kiểm tra API và kết nối database
+      operationId: getHealth
+      responses:
+        '200':
+          description: API và database hoạt động
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HealthStatus'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản (chưa kích hoạt) và gửi email xác thực
+      description: |
+        Response luôn giống nhau dù email đã tồn tại hay chưa (không dò được email đã đăng ký):
+        - Email mới → tạo tài khoản MEMBER chưa kích hoạt, gửi email xác thực (hạn 24 giờ).
+        - Email đã kích hoạt → gửi email "bạn đã có tài khoản", không thay đổi gì.
+        - Email chưa kích hoạt → huỷ link kích hoạt cũ, gửi link đặt mật khẩu (hạn 60 phút) để
+          chống pre-account takeover.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                password:
+                  type: string
+                  minLength: 8
+                  description: Tối đa 72 byte UTF-8
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Kích hoạt tài khoản bằng token trong email
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          description: '`TOKEN_INVALID` (sai / hết hạn / đã dùng) hoặc `VALIDATION_ERROR`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/resend-verification:
+    post:
+      tags: [Auth]
+      summary: Gửi lại email xác thực
+      description: Luôn trả 200; chỉ thực sự gửi khi email thuộc tài khoản chưa kích hoạt.
+      operationId: resendVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập bằng email + mật khẩu
+      description: |
+        Thành công: trả access token + user, đặt cookie httpOnly `refresh_token`
+        (`<sessionId>.<secret>`, 30 ngày). Sai email hay sai mật khẩu trả cùng một lỗi; trạng thái
+        khoá / chưa kích hoạt chỉ được báo khi mật khẩu đúng. Rate limit 10 lần / 15 phút / IP.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          headers:
+            Set-Cookie:
+              description: 'refresh_token=...; HttpOnly; Path=/api/v1/auth; SameSite=Lax'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthSession'
+        '400':
+          description: '`INVALID_CREDENTIALS` hoặc `VALIDATION_ERROR`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: '`EMAIL_NOT_VERIFIED` hoặc `ACCOUNT_LOCKED`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Đổi refresh token (cookie) lấy access token mới, xoay vòng refresh token
+      description: |
+        Bắt buộc header `X-Requested-With: XMLHttpRequest` (chống CSRF) và cookie `refresh_token`.
+        - Token hiện tại hợp lệ → access token mới + cookie refresh mới, phiên gia hạn 30 ngày.
+        - Token ngay trước đó, trong 30 giây sau lần xoay (nhiều tab) → access token mới, KHÔNG
+          đặt lại cookie.
+        - Token ngay trước đó quá 30 giây → coi là bị đánh cắp, thu hồi cả phiên → 401.
+        Thất bại luôn kèm xoá cookie.
+      operationId: refreshSession
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      responses:
+        '200':
+          description: Phiên mới
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: '`CSRF_REJECTED` hoặc `ACCOUNT_LOCKED` (phiên bị thu hồi)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Đăng xuất phiên hiện tại (idempotent)
+      description: Thu hồi phiên ứng với cookie `refresh_token` (phải đúng secret) và xoá cookie.
+      operationId: logout
+      parameters:
+        - $ref: '#/components/parameters/XRequestedWith'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '403':
+          description: '`CSRF_REJECTED`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Gửi link đặt lại mật khẩu (60 phút)
+      description: Luôn trả 200 (không lộ email). Tài khoản bị khoá không nhận link.
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Đặt mật khẩu mới bằng token trong email
+      description: |
+        Trong một transaction: tiêu thụ token, đặt mật khẩu, kích hoạt tài khoản nếu chưa, thu hồi
+        MỌI phiên đăng nhập. Gửi email báo mật khẩu đã đổi.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          description: '`TOKEN_INVALID` hoặc `VALIDATION_ERROR`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /users/me/password:
+    patch:
+      tags: [Users]
+      summary: Đổi mật khẩu khi đang đăng nhập
+      description: |
+        Thu hồi mọi phiên KHÁC, giữ phiên hiện tại; gửi email báo mật khẩu đã đổi.
+        Giới hạn 5 lần / 15 phút / **user** (không theo IP) — chống dò mật khẩu hiện tại
+        bằng access token bị lộ.
+      operationId: changeMyPassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          description: '`INVALID_CURRENT_PASSWORD` (kèm details ô currentPassword), `PASSWORD_NOT_SET` hoặc `VALIDATION_ERROR`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/magic-link:
+    post:
+      tags: [Auth]
+      summary: Gửi liên kết đăng nhập không cần mật khẩu (15 phút)
+      description: Chỉ gửi cho tài khoản đã tồn tại; response luôn giống nhau.
+      operationId: requestMagicLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '403':
+          description: '`FEATURE_DISABLED`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/magic-link/verify:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập bằng token trong magic link
+      description: |
+        Tài khoản chưa kích hoạt được kích hoạt luôn. Tắt setting → link đã gửi cũng vô hiệu.
+        Thành công giống POST /auth/login (access token + cookie refresh).
+      operationId: loginWithMagicLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenBody'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthSession'
+        '400':
+          description: '`TOKEN_INVALID`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: '`FEATURE_DISABLED` hoặc `ACCOUNT_LOCKED`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/google:
+    get:
+      tags: [Auth]
+      summary: Bắt đầu đăng nhập Google (điều hướng trình duyệt, không gọi bằng fetch)
+      description: |
+        Authorization Code + PKCE. Đặt cookie tạm httpOnly `oauth_google` (state + code verifier,
+        10 phút, SameSite=Lax) rồi 302 sang Google. Chưa cấu hình `GOOGLE_*` → 404.
+      operationId: startGoogleLogin
+      responses:
+        '302':
+          description: Chuyển sang trang đăng nhập Google
+        '404':
+          description: '`FEATURE_NOT_CONFIGURED`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Google chuyển về sau khi người dùng đồng ý
+      description: |
+        Kiểm tra `state` với cookie tạm, đổi `code` (kèm code verifier) lấy ID token, rồi đăng nhập
+        theo thứ tự: googleId → email (chỉ tin email Google đã xác minh; tài khoản local chưa kích
+        hoạt bị xoá mật khẩu cũ) → tạo mới. Luôn 302 về `APP_URL/auth/callback`; thành công kèm
+        cookie refresh (frontend gọi /auth/refresh lấy access token), thất bại kèm `?error=CODE`.
+      operationId: googleCallback
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Về trang /auth/callback của frontend
+  /settings/public:
+    get:
+      tags: [Settings]
+      summary: Cấu hình công khai (không cần đăng nhập)
+      operationId: getPublicSettings
+      responses:
+        '200':
+          description: Setting `isPublic` + cờ tính năng theo biến môi trường
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          settings:
+                            type: object
+                            additionalProperties: true
+                            example:
+                              auth.registrationEnabled: true
+                              auth.magicLinkEnabled: true
+                          features:
+                            type: object
+                            properties:
+                              googleOAuth:
+                                type: boolean
+                              storage:
+                                type: boolean
+  /admin/settings:
+    get:
+      tags: [Settings]
+      summary: Toàn bộ setting kèm mô tả (Super Admin)
+      operationId: listSettings
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách setting
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SettingItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Settings]
+      summary: Cập nhật nhiều setting trong một transaction (Super Admin)
+      operationId: updateSettings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  description: 'key → giá trị; key lạ hoặc sai kiểu → 400'
+                  example:
+                    auth.magicLinkEnabled: false
+                    email.provider: smtp
+      responses:
+        '200':
+          description: Danh sách setting sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/settings/email-test:
+    post:
+      tags: [Settings]
+      summary: Gửi email thử tới Super Admin đang đăng nhập qua một kênh (Super Admin)
+      description: >-
+        Chờ nhà cung cấp trả lời để báo lỗi ngay. Dùng kênh trong body (có thể khác kênh đang lưu)
+        để thử trước khi đổi. Giới hạn 5 lần / 15 phút / user.
+      operationId: sendTestEmail
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider:
+                  type: string
+                  enum: [console, resend, smtp]
+                  description: Kênh chưa cấu hình biến môi trường → 400
+      responses:
+        '200':
+          description: Đã gửi — `message` = "Đã gửi email thử tới <email>"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          to:
+                            type: string
+                          provider:
+                            type: string
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          description: Nhà cung cấp từ chối / không kết nối được (`EMAIL_DELIVERY_FAILED`), `message` kèm lý do
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users:
+    get:
+      tags: [Admin Users]
+      summary: Danh sách người dùng (tìm, lọc, sắp xếp, phân trang)
+      description: 'Tham số lọc để trống = không lọc. Response phân trang: `{ success, data: [...], meta }`.'
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Tìm trong tên / email (không phân biệt hoa thường)
+          schema:
+            type: string
+            maxLength: 100
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [MEMBER, ADMIN, SUPER_ADMIN]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, LOCKED, UNVERIFIED]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: ['-createdAt', createdAt, name, '-name', '-lastLoginAt']
+            default: '-createdAt'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Trang kết quả
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUserItem'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/users/{id}/lock:
+    patch:
+      tags: [Admin Users]
+      summary: Khoá tài khoản (thu hồi mọi phiên, gửi email)
+      description: ADMIN chỉ khoá được MEMBER; SUPER_ADMIN khoá được MEMBER và ADMIN.
+      operationId: lockUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminUserResult'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/users/{id}/unlock:
+    patch:
+      tags: [Admin Users]
+      summary: Mở khoá tài khoản (gửi email)
+      operationId: unlockUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminUserResult'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/users/{id}/role:
+    patch:
+      tags: [Admin Users]
+      summary: Nâng / hạ MEMBER ↔ ADMIN (chỉ SUPER_ADMIN)
+      operationId: changeUserRole
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [MEMBER, ADMIN]
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminUserResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /files:
+    get:
+      tags: [Files]
+      summary: File đã tải lên của chính mình (mới nhất trước)
+      operationId: listFiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Trang kết quả
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FileItem'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /files/presign:
+    post:
+      tags: [Files]
+      summary: 'Bước 1: tạo bản ghi PENDING + presigned PUT lên R2'
+      description: |
+        Whitelist: image/jpeg, image/png, image/webp, image/gif, application/pdf; tối đa 10MB.
+        Quota theo user: tối đa 100 file và 200MB tổng dung lượng (tính cả bản ghi PENDING).
+        Giới hạn tần suất 30 lần / 15 phút / user.
+      operationId: presignFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName, contentType, size]
+              properties:
+                fileName:
+                  type: string
+                  maxLength: 255
+                contentType:
+                  type: string
+                  enum: [image/jpeg, image/png, image/webp, image/gif, application/pdf]
+                size:
+                  type: integer
+                  minimum: 1
+                  maximum: 10485760
+      responses:
+        '201':
+          description: 'Client PUT file tới `upload.url` với đúng `upload.headers` (không kèm cookie/token)'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          file:
+                            $ref: '#/components/schemas/FileItem'
+                          upload:
+                            type: object
+                            properties:
+                              url:
+                                type: string
+                              method:
+                                type: string
+                                const: PUT
+                              headers:
+                                type: object
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: '`STORAGE_QUOTA_EXCEEDED` — vượt quota số file hoặc tổng dung lượng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /files/{id}/complete:
+    post:
+      tags: [Files]
+      summary: 'Bước 3: xác nhận đã upload — server HEAD object thật trên R2 để đối chiếu'
+      operationId: completeFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: File READY
+        '400':
+          description: '`UPLOAD_NOT_FOUND` hoặc `UPLOAD_MISMATCH`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /files/{id}/download:
+    get:
+      tags: [Files]
+      summary: Presigned GET để tải file (hết hạn sau 5 phút)
+      operationId: getFileDownloadUrl
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: '`data.url`'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /files/{id}:
+    delete:
+      tags: [Files]
+      summary: Xoá file (xoá object trên R2 rồi xoá bản ghi)
+      operationId: deleteFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /media/{id}/content:
+    get:
+      tags: [Media]
+      summary: Hiển thị ảnh (công khai) — 302 sang presigned GET
+      description: '`Cache-Control: public, max-age=240`, `Cross-Origin-Resource-Policy: cross-origin`.'
+      operationId: getMediaContent
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '302':
+          description: Chuyển tới URL có chữ ký của R2
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /media/avatar/presign:
+    post:
+      tags: [Media]
+      summary: Xin URL tải ảnh đại diện (≤ 2MB, luôn vào folder avatars)
+      description: Giới hạn tần suất 30 lần / 15 phút / user.
+      operationId: presignAvatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName, contentType, size]
+              properties:
+                fileName:
+                  type: string
+                contentType:
+                  type: string
+                  enum: [image/jpeg, image/png, image/webp, image/gif]
+                size:
+                  type: integer
+                  maximum: 2097152
+      responses:
+        '201':
+          description: '`{ media, upload }` — giống /files/presign'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /media/{id}/complete:
+    post:
+      tags: [Media]
+      summary: Xác nhận đã upload ảnh (chỉ người tải lên) — HEAD object thật trên R2
+      operationId: completeMedia
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Ảnh READY
+        '400':
+          description: '`UPLOAD_NOT_FOUND` hoặc `UPLOAD_MISMATCH`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/me/avatar:
+    patch:
+      tags: [Users]
+      summary: Đặt / gỡ ảnh đại diện
+      description: '`mediaId` phải là ảnh READY do chính người dùng tải vào folder avatars; `null` = gỡ. Ảnh cũ thành mồ côi.'
+      operationId: updateMyAvatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mediaId]
+              properties:
+                mediaId:
+                  type: [string, 'null']
+      responses:
+        '200':
+          description: User sau khi cập nhật
+        '400':
+          description: '`INVALID_AVATAR` hoặc `VALIDATION_ERROR`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/media:
+    get:
+      tags: [Media]
+      summary: Thư viện ảnh (ADMIN trở lên) — kèm nơi dùng của từng ảnh
+      operationId: listMedia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: folder
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Tìm theo tên ảnh
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [image/jpeg, image/png, image/webp, image/gif]
+        - name: usage
+          in: query
+          schema:
+            type: string
+            enum: [in-use, orphan]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: ['-createdAt', createdAt, name, '-size']
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 'Trang kết quả; mỗi ảnh có `usages: [{ label, href }]`'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/media/folders:
+    get:
+      tags: [Media]
+      summary: Tổng quan thư mục (hệ thống + đã tạo, kể cả rỗng)
+      description: >-
+        Thư mục hệ thống (`avatars`) đứng đầu, còn lại A → Z. Chỉ tính ảnh READY; `coverIds` là
+        tối đa 4 ảnh mới nhất (hiển thị qua `GET /media/{id}/content`).
+      operationId: listMediaFolders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mảng thư mục
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MediaFolderItem'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Media]
+      summary: Tạo thư mục rỗng
+      operationId: createMediaFolder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  pattern: '^[a-z0-9-]{1,50}$'
+      responses:
+        '201':
+          description: '`data` = thư mục vừa tạo `{ id, name, createdBy, createdAt }`'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: '`FOLDER_EXISTS` — trùng tên (kể cả tên thư mục hệ thống), `details` gắn trường `name`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/media/folders/{name}:
+    delete:
+      tags: [Media]
+      summary: Xoá thư mục rỗng
+      operationId: deleteMediaFolder
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]{1,50}$'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`FOLDER_NOT_EMPTY` — còn ảnh (kể cả ảnh đang tải dở)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/media/presign:
+    post:
+      tags: [Media]
+      summary: Xin URL tải ảnh vào thư mục đã tạo (tối đa 10MB)
+      description: >-
+        Giới hạn tần suất 30 lần / 15 phút / user. Thư mục phải được tạo trước
+        (`POST /admin/media/folders`); thư mục hệ thống không tải tay được.
+      operationId: presignMedia
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: '`{ media, upload }`'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /admin/media/cleanup-orphans:
+    post:
+      tags: [Media]
+      summary: Dọn ảnh mồ côi (không nơi nào dùng, tải lên quá 24 giờ)
+      operationId: cleanupOrphanMedia
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: '`data.deletedCount`'
+  /admin/media/{id}:
+    delete:
+      tags: [Media]
+      summary: Xoá ảnh (đang dùng → 409 MEDIA_IN_USE kèm nơi dùng)
+      operationId: deleteMedia
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`MEDIA_IN_USE`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /jobs/trigger:
+    post:
+      tags: [Jobs]
+      summary: Chạy các job đến hạn — cho cron bên ngoài gọi định kỳ
+      description: |
+        Header `X-Jobs-Secret` phải khớp `JOBS_TRIGGER_SECRET` (so sánh timing-safe). Chưa cấu hình
+        secret → 404. Dùng khi nền tảng deploy "ngủ" server (bộ chạy trong tiến trình không chạy).
+      operationId: triggerJobs
+      parameters:
+        - name: X-Jobs-Secret
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: '`data.executedCount` = số job đã chạy'
+        '403':
+          description: Sai secret
+        '404':
+          description: '`FEATURE_NOT_CONFIGURED`'
+  /admin/jobs:
+    get:
+      tags: [Jobs]
+      summary: Danh sách job (kèm isSystem, isRunning)
+      operationId: listJobs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mảng job
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Jobs]
+      summary: Tạo job (loại không phải "chỉ hệ thống")
+      description: '`config` kiểm tra theo loại job; lỗi trả `details.field` dạng `config.<tên>`.'
+      operationId: createJob
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, schedule]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [SEND_EMAIL]
+                config:
+                  type: object
+                  example:
+                    subject: Bảo trì hệ thống
+                    content: Tối nay bảo trì từ 22:00.
+                    roles: [MEMBER]
+                schedule:
+                  $ref: '#/components/schemas/JobSchedule'
+      responses:
+        '201':
+          description: Job vừa tạo (có nextRunAt)
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /admin/jobs/types:
+    get:
+      tags: [Jobs]
+      summary: Các loại job (label, mô tả, configFields để sinh form)
+      operationId: listJobTypes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mảng loại job
+  /admin/jobs/{id}:
+    patch:
+      tags: [Jobs]
+      summary: Sửa tên / config / lịch (không đổi loại)
+      operationId: updateJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Job sau khi sửa
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Jobs]
+      summary: Xoá job + lịch sử chạy (job hệ thống → 403, đang chạy → 409)
+      operationId: deleteJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          description: '`JOB_RUNNING`'
+  /admin/jobs/{id}/pause:
+    post:
+      tags: [Jobs]
+      summary: Tạm dừng job
+      operationId: pauseJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Job sau khi cập nhật
+  /admin/jobs/{id}/resume:
+    post:
+      tags: [Jobs]
+      summary: Tiếp tục job
+      operationId: resumeJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Job sau khi cập nhật
+  /admin/jobs/{id}/run:
+    post:
+      tags: [Jobs]
+      summary: Chạy ngay (không đổi lịch)
+      operationId: runJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Lần chạy (status SUCCESS / FAILED)
+        '409':
+          description: '`JOB_RUNNING`'
+  /admin/jobs/{id}/runs:
+    get:
+      tags: [Jobs]
+      summary: Lịch sử chạy (giữ 90 ngày)
+      operationId: listJobRuns
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Trang lịch sử
+  /admin/stats:
+    get:
+      tags: [Stats]
+      summary: Số liệu tổng quan (ADMIN trở lên)
+      operationId: getAdminStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: '`{ users: { total, byRole, byStatus }, media: { total, orphans }, jobs: { total, active, recentFailures } }`'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Thông tin người đang đăng nhập
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User hiện tại
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Users]
+      summary: Tự cập nhật hồ sơ (chỉ tên — không đổi được email, role)
+      operationId: updateMe
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+      responses:
+        '200':
+          description: User sau khi cập nhật
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /sessions:
+    get:
+      tags: [Sessions]
+      summary: Danh sách thiết bị đang đăng nhập (mới dùng gần nhất lên đầu)
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Danh sách phiên
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SessionInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [Sessions]
+      summary: Đăng xuất mọi thiết bị khác (giữ phiên hiện tại)
+      operationId: revokeOtherSessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: '`data.revokedCount` = số phiên đã thu hồi'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /sessions/{id}:
+    delete:
+      tags: [Sessions]
+      summary: Thu hồi một phiên khác của chính mình
+      description: Phiên của người khác trả 404 như không tồn tại (chống IDOR).
+      operationId: revokeSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          $ref: '#/components/responses/Message'
+        '400':
+          description: '`CANNOT_REVOKE_CURRENT_SESSION` hoặc `VALIDATION_ERROR` (id sai định dạng)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-f0-9]{24}$'
+    XRequestedWith:
+      name: X-Requested-With
+      in: header
+      required: true
+      schema:
+        type: string
+        const: XMLHttpRequest
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    JobSchedule:
+      oneOf:
+        - type: object
+          required: [kind, runAt]
+          properties:
+            kind:
+              type: string
+              const: ONCE
+            runAt:
+              type: string
+              format: date-time
+        - type: object
+          required: [kind, everyDays, time]
+          properties:
+            kind:
+              type: string
+              const: INTERVAL
+            everyDays:
+              type: integer
+              minimum: 1
+              maximum: 365
+            time:
+              type: string
+              description: HH:mm theo JOBS_TIMEZONE
+            startDate:
+              type: string
+              description: YYYY-MM-DD (mốc neo, tuỳ chọn)
+    FileItem:
+      type: object
+      properties:
+        id:
+          type: string
+        originalName:
+          type: string
+        contentType:
+          type: string
+        size:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+    MediaFolderItem:
+      type: object
+      properties:
+        name:
+          type: string
+        isSystem:
+          type: boolean
+          description: Thư mục hệ thống — không tạo / xoá / tải tay
+        mediaCount:
+          type: integer
+        totalSize:
+          type: integer
+          description: byte
+        coverIds:
+          type: array
+          items:
+            type: string
+        lastUploadedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+    AdminUserItem:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [MEMBER, ADMIN, SUPER_ADMIN]
+        avatarMediaId:
+          type: [string, 'null']
+          description: Ảnh đại diện (hiển thị qua `GET /media/{id}/content`)
+        status:
+          type: string
+          enum: [ACTIVE, LOCKED, UNVERIFIED]
+        emailVerifiedAt:
+          type: [string, 'null']
+          format: date-time
+        lockedAt:
+          type: [string, 'null']
+          format: date-time
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    SettingItem:
+      type: object
+      properties:
+        key:
+          type: string
+        value: {}
+        default: {}
+        isPublic:
+          type: boolean
+        input:
+          type: string
+          enum: [boolean, select]
+        options:
+          type: [array, 'null']
+          description: Chỉ với `input = select`; lựa chọn `disabled` = server chưa cấu hình biến môi trường
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+              disabled:
+                type: boolean
+        label:
+          type: string
+        description:
+          type: string
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+        updatedBy:
+          type: [object, 'null']
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+    SessionInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        device:
+          type: object
+          properties:
+            browser:
+              type: string
+            os:
+              type: string
+            deviceType:
+              type: string
+              enum: [desktop, mobile, tablet]
+        ip:
+          type: string
+        userAgent:
+          type: string
+        lastUsedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        isCurrent:
+          type: boolean
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [MEMBER, ADMIN, SUPER_ADMIN]
+        emailVerifiedAt:
+          type: [string, 'null']
+          format: date-time
+        lockedAt:
+          type: [string, 'null']
+          format: date-time
+        avatarMediaId:
+          type: [string, 'null']
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuthSession:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT HS256, hạn 15 phút, payload chỉ `sub` + `sid`
+        user:
+          $ref: '#/components/schemas/User'
+    SuccessResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+    ErrorDetail:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          examples: [email]
+        message:
+          type: string
+          examples: [địa chỉ email không hợp lệ]
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              examples: [VALIDATION_ERROR]
+            message:
+              type: string
+              examples: [Dữ liệu không hợp lệ]
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ErrorDetail'
+    HealthStatus:
+      type: object
+      required: [status, database, uptime, timestamp]
+      properties:
+        status:
+          type: string
+          const: ok
+        database:
+          type: string
+          const: up
+        uptime:
+          type: integer
+          description: Số giây tiến trình đã chạy
+        timestamp:
+          type: string
+          format: date-time
+    TokenBody:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: Token lấy từ query `?token=` của link trong email
+  responses:
+    AdminUserResult:
+      description: User sau khi cập nhật
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+    Conflict:
+      description: '`USER_STATE_CHANGED`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: '`RESOURCE_NOT_FOUND`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: |
+        Access token thiếu / sai (`AUTH_TOKEN_INVALID`) hoặc hết hạn (`AUTH_TOKEN_EXPIRED`), hoặc
+        phiên đã bị thu hồi. Frontend gọi refresh rồi thử lại.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: '`FORBIDDEN` (không đủ quyền) hoặc `ACCOUNT_LOCKED`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Message:
+      description: Thành công, chỉ có thông điệp
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: 'null'
+    ValidationError:
+      description: Dữ liệu vào sai (`VALIDATION_ERROR`, `details` theo từng trường)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Vượt giới hạn request (`RATE_LIMITED`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: Database không phản hồi
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: SERVICE_UNAVAILABLE
+              message: Cơ sở dữ liệu không phản hồi

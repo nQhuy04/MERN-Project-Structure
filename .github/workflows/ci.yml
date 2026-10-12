@@ -1,0 +1,51 @@
+# Kiểm tra mỗi lần push / mở pull request: format, quy ước, test (backend + frontend), build.
+# Không có bước lint — dự án chỉ dùng Prettier; các quy ước trước đây do lint giữ được
+# scripts/check-conventions.mjs kiểm (xem README).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HUSKY: '0'
+      # Binary MongoDB của mongodb-memory-server (test backend) — cache lại giữa các lần chạy.
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/../.mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Cache MongoDB binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../.mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Quy ước dự án
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: /api/v1

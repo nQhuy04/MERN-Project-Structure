@@ -1,0 +1,11 @@
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/** Thời hạn các loại token gửi qua email. */
+export const VERIFY_EMAIL_TTL_HOURS = 24;
+export const RESET_PASSWORD_TTL_MINUTES = 60;
+export const MAGIC_LINK_TTL_MINUTES = 15;
+
+export const VERIFY_EMAIL_TTL_MS = VERIFY_EMAIL_TTL_HOURS * HOUR_MS;
+export const RESET_PASSWORD_TTL_MS = RESET_PASSWORD_TTL_MINUTES * MINUTE_MS;
+export const MAGIC_LINK_TTL_MS = MAGIC_LINK_TTL_MINUTES * MINUTE_MS;

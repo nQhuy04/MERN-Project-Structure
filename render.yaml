@@ -1,0 +1,78 @@
+# Render Blueprint — backend API. Hướng dẫn đầy đủ: docs/07-tao-du-an-moi-va-deploy.md
+# Render → New → Blueprint → chọn repo. Biến `sync: false` được hỏi giá trị khi tạo lần đầu.
+services:
+  - type: web
+    name: mern-base-api
+    runtime: node
+    plan: free
+    region: singapore
+    # Monorepo npm workspaces: cài từ gốc repo (dùng package-lock.json chung).
+    # --include=dev: NODE_ENV=production làm npm bỏ devDependencies → script `prepare` (husky)
+    # không tìm thấy lệnh. HUSKY=0: không cài git hook trên máy build.
+    # Migration chạy ở bước build vì gói free không có preDeployCommand; migration chỉ tạo index
+    # và chạy lại an toàn. Gói trả phí: chuyển `npm run db:migrate` sang preDeployCommand.
+    buildCommand: HUSKY=0 npm ci --include=dev && npm run db:migrate
+    startCommand: npm run start -w backend
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      # URL frontend trên Vercel, vd. https://mern-base.vercel.app
+      - key: APP_URL
+        sync: false
+      # Origin frontend (trình duyệt vẫn gửi Origin khi gọi qua proxy /api của Vercel).
+      - key: CORS_ORIGINS
+        sync: false
+      # Trình duyệt → Vercel → proxy của Render → app: 2 hop. Kiểm tra: trang "Phiên đăng nhập"
+      # phải hiện đúng IP của bạn (sai → rate limit tính chung cho mọi người).
+      - key: TRUST_PROXY
+        value: '2'
+      # Frontend gọi API cùng domain qua proxy Vercel → Lax là đủ (Secure tự bật ở production).
+      - key: COOKIE_SAME_SITE
+        value: lax
+      # Email: điền ít nhất một kênh — Resend (có domain) hoặc nhóm SMTP_* (Gmail, không cần domain).
+      # Bỏ trống EMAIL_DELIVERY = Resend nếu có key, không thì SMTP. Super Admin đổi kênh ở trang
+      # Cấu hình. Gói FREE chặn cổng SMTP 25/465/587 → Gmail SMTP không gửi được: chưa có domain thì
+      # đặt EMAIL_DELIVERY=console (chỉ demo, email in ra log), có domain thì dùng Resend (docs 05 §3.3).
+      - key: EMAIL_DELIVERY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: JOBS_TIMEZONE
+        value: Asia/Ho_Chi_Minh
+      # Cron bên ngoài gọi POST /api/v1/jobs/trigger với header X-Jobs-Secret (gói free ngủ khi rảnh).
+      - key: JOBS_TRIGGER_SECRET
+        generateValue: true
+      # Tuỳ chọn — bỏ trống cả nhóm để tắt tính năng.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Qua domain Vercel: https://<app>.vercel.app/api/v1/auth/google/callback
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false

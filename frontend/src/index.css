@@ -1,0 +1,129 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens — nguồn sự thật DUY NHẤT về màu của giao diện (xem docs/09-giao-dien.md).
+ *
+ * - Component chỉ dùng tên theo VAI TRÒ (`bg-surface`, `text-fg-muted`, `bg-primary`...), không
+ *   dùng bảng màu gốc của Tailwind (`bg-blue-600`). `npm run check` chặn class màu thô.
+ * - Dự án mới đổi thương hiệu = sửa giá trị ở `:root` (và `[data-theme='dark']`), không sửa component.
+ * - Dark mode: token đã sẵn, bật bằng `<html data-theme="dark">` (chưa có nút chuyển).
+ */
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  /* Nền & bề mặt */
+  --canvas: #f5f6f8;
+  --surface: #ffffff;
+  --subtle: #eef0f3;
+  --line: #e2e5ea;
+  --line-strong: #c9ced6;
+  --overlay: rgb(15 20 30 / 0.45);
+
+  /* Chữ */
+  --fg: #141922;
+  --fg-muted: #586174;
+  --fg-subtle: #8a92a2;
+
+  /* Thương hiệu */
+  --primary: #0e7a6d;
+  --primary-hover: #0b6358;
+  --primary-soft: #e3f3f0;
+  --on-primary: #ffffff;
+
+  /* Trạng thái */
+  --danger: #d0342c;
+  --danger-hover: #b0271f;
+  --danger-soft: #fdeceb;
+  --success: #1c7c45;
+  --success-soft: #e5f4ea;
+  --warning: #a8590a;
+  --warning-soft: #fcf1df;
+  --info: #2f5fb3;
+  --info-soft: #e8effb;
+}
+
+[data-theme='dark'] {
+  --canvas: #0e1117;
+  --surface: #161b23;
+  --subtle: #1f2530;
+  --line: #2a313d;
+  --line-strong: #3a4250;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --fg: #e7eaf0;
+  --fg-muted: #a3abba;
+  --fg-subtle: #737c8c;
+
+  --primary: #2bb3a1;
+  --primary-hover: #4cc6b5;
+  --primary-soft: #133a36;
+  --on-primary: #06201d;
+
+  --danger: #f06a61;
+  --danger-hover: #f48a83;
+  --danger-soft: #3b1c1b;
+  --success: #4cc27a;
+  --success-soft: #16301f;
+  --warning: #e3a04d;
+  --warning-soft: #362612;
+  --info: #7aa5f0;
+  --info-soft: #1a2740;
+}
+
+@theme inline {
+  /* Bỏ bảng màu gốc: class màu thô (bg-blue-600...) không còn được sinh ra. */
+  --color-*: initial;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-overlay: var(--overlay);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  [data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-fg antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::selection {
+    @apply bg-primary-soft text-fg;
+  }
+
+  /* Vòng focus thống nhất cho mọi phần tử tương tác dùng bàn phím. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+}
