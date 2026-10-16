@@ -99,7 +99,12 @@ async function assertRegistrationEnabled() {
  * @throws {AppError} 403 REGISTRATION_DISABLED khi Super Admin tắt đăng ký
  */
 async function register({ email, name, password }) {
-  return notImplemented('bai-02');
+  await assertRegistrationEnabled();
+  const passwordHash = await hashPassword(password);
+  const existingUser = await usersService.findByEmail(email);
+  if (!existingUser) {
+    await usersService.createLocalUser({ email, name, passwordHash });
+  }
 }
 
 /**

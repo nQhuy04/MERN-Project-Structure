@@ -45,12 +45,21 @@ export const loginSchema = z.object({
  * Quy tắc phải KHỚP với `users.schema.js` của backend. Frontend validate để báo lỗi ngay khi gõ;
  * backend vẫn là chốt chặn cuối (ai cũng gọi thẳng API bằng curl được).
  */
-export const registerSchema = z.object({
-  name: z.string(),
-  email: z.string(),
-  password: z.string(),
-  confirmPassword: z.string(),
-});
+export const registerSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Vui lòng nhập tên')
+      .max(NAME_MAX_LENGTH, `Tên quá dài (tối đa ${NAME_MAX_LENGTH} ký tự)`),
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Vui lòng nhập lại mật khẩu'),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Mật khẩu nhập lại không khớp',
+  });
 
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 

@@ -5,9 +5,9 @@
 
 ## Tiến độ: [0/16 bài]
 
-- [ ] Bài 00 — Chuẩn bị môi trường
-- [ ] Bài 01 — Đọc hiểu kiến trúc
-- [ ] Bài 02 — Đăng ký tài khoản
+- [x] Bài 00 — Chuẩn bị môi trường
+- [x] Bài 01 — Đọc hiểu kiến trúc
+- [x] Bài 02 — Đăng ký tài khoản
 - [ ] Bài 03 — Email & xác thực tài khoản
 - [ ] Bài 04 — Đăng nhập
 - [ ] Bài 05 — Bảo vệ route & phân quyền

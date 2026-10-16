@@ -35,7 +35,8 @@ function getClientInfo(req) {
  * Không cần `try/catch`: Express 5 tự chuyển lỗi của hàm `async` tới `errorHandler`.
  */
 async function register(req, res) {
-  return notImplemented('bai-02');
+  await authService.register(req.validated.body);
+  sendSuccess(res, null, 'Vui lòng kiểm tra email để hoàn tất đăng ký');
 }
 
 /**

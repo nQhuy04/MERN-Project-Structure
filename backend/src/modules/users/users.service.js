@@ -87,7 +87,8 @@ async function findById(userId) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function createLocalUser({ email, name, passwordHash }) {
-  return notImplemented('bai-02');
+  const user = await User.create({ email, name, passwordHash });
+  return user;
 }
 
 /**

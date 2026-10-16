@@ -44,7 +44,18 @@ export function RegisterForm() {
    *    đúng ô, lỗi không theo trường (vd. bị giới hạn request) thành lỗi chung của form.
    */
   const onSubmit = ({ name, email, password }) => {
-    notImplemented('bai-02');
+    registerMutation.mutate(
+      { name, email, password },
+      {
+        onSuccess: () => {
+          const params = new URLSearchParams({ email });
+          navigate(`${ROUTES.AUTH.CHECK_EMAIL}?${params}`);
+        },
+        onError: (error) => {
+          applyServerErrors(error, setError, FIELD_NAMES);
+        },
+      },
+    );
   };
 
   if (isRegistrationEnabled === false) {

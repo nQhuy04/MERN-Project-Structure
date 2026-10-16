@@ -19,7 +19,8 @@ import { notImplemented } from '@/shared/lib/practice';
  * @throws {ApiError} VALIDATION_ERROR (kèm `details` từng trường) | RATE_LIMITED
  */
 export async function register(body) {
-  return notImplemented('bai-02');
+  const response = await http.post('/auth/register', body);
+  return response.data;
 }
 
 /**
