@@ -29,7 +29,9 @@ export function useConsumeTokenOnce(mutationFn, token) {
   const hasStartedRef = useRef(false);
 
   useEffect(() => {
-    // TODO(bai-03): gọi `mutate({ token })` đúng một lần (xem mô tả phía trên).
+    if (!token || hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    mutate({ token });
   }, [token, mutate]);
 
   return mutation;

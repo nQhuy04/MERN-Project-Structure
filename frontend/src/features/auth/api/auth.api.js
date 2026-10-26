@@ -30,7 +30,8 @@ export async function register(body) {
  * @throws {ApiError} TOKEN_INVALID khi link sai/hết hạn/đã dùng
  */
 export async function verifyEmail(body) {
-  return notImplemented('bai-03');
+  const response = await http.post('/auth/verify-email', body);
+  return response.data;
 }
 
 /**
@@ -39,7 +40,8 @@ export async function verifyEmail(body) {
  * @returns {Promise} resolve body response (luôn thành công nếu email hợp lệ)
  */
 export async function resendVerification(body) {
-  return notImplemented('bai-03');
+  const response = await http.post('/auth/resend-verification', body);
+  return response.data;
 }
 
 /**

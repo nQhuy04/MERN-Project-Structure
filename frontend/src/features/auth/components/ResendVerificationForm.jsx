@@ -8,7 +8,6 @@ import { Button } from '@/shared/components/ui/Button';
 import { FormError } from '@/shared/components/ui/FormError';
 import { TextField } from '@/shared/components/ui/TextField';
 import { applyServerErrors } from '@/shared/lib/form';
-import { notImplemented } from '@/shared/lib/practice';
 import { z } from '@/shared/lib/zod';
 
 const resendSchema = z.object({ email: emailSchema });
@@ -34,7 +33,10 @@ export function ResendVerificationForm({ defaultEmail = '' }) {
    * - `onError`: `applyServerErrors(error, setError, ['email'])`.
    */
   const onSubmit = (values) => {
-    notImplemented('bai-03');
+    resendMutation.mutate(values, {
+      onSuccess: (body) => toast.success(body.message),
+      onError: (error) => applyServerErrors(error, setError, ['email']),
+    });
   };
 
   return (

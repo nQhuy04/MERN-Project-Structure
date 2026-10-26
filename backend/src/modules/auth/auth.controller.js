@@ -45,7 +45,8 @@ async function register(req, res) {
  * được kích hoạt')`.
  */
 async function verifyEmail(req, res) {
-  return notImplemented('bai-03');
+  await authService.verifyEmail(req.validated.body);
+  sendSuccess(res, null, 'Xác thực email thành công, tài khoản đã được kích hoạt');
 }
 
 /**
@@ -54,7 +55,12 @@ async function verifyEmail(req, res) {
  * nhau dù có gửi hay không, để không lộ email nào đã đăng ký.
  */
 async function resendVerification(req, res) {
-  return notImplemented('bai-03');
+  await authService.resendVerification(req.validated.body);
+  sendSuccess(
+    res,
+    null,
+    'Nếu email thuộc một tài khoản chưa kích hoạt, chúng tôi đã gửi lại liên kết',
+  );
 }
 
 /**

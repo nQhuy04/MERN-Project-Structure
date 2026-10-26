@@ -26,7 +26,16 @@ import { EmailToken } from './emailTokens.model.js';
  * @throws {AppError} 501 khi chưa làm
  */
 async function issue({ userId, type, ttlMs }) {
-  return notImplemented('bai-03');
+  await EmailToken.deleteMany({ userId, type });
+
+  const token = generateToken();
+  await EmailToken.create({
+    userId,
+    type,
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + ttlMs),
+  });
+  return token;
 }
 
 /**
@@ -55,7 +64,16 @@ async function issue({ userId, type, ttlMs }) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function consume({ token, type, session }) {
-  return notImplemented('bai-03');
+  return EmailToken.findOneAndUpdate(
+    {
+      tokenHash: hashToken(token),
+      type,
+      usedAt: null,
+      expiresAt: mongoose.trusted({ $gt: new Date() }),
+    },
+    { $set: { usedAt: new Date() } },
+    { returnDocument: 'after', runValidators: true, session },
+  );
 }
 
 /**
@@ -70,7 +88,7 @@ async function consume({ token, type, session }) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function revokeAll({ userId, type }) {
-  return notImplemented('bai-03');
+  await EmailToken.deleteMany({ userId, type });
 }
 
 /**

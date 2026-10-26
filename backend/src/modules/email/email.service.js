@@ -106,7 +106,15 @@ function send(message) {
  * @throws {AppError} 501 khi chưa làm
  */
 function sendVerifyEmail({ user, token, expiresInHours }) {
-  return notImplemented('bai-03');
+  send({
+    to: user.email,
+    subject: 'Xác thực email của bạn',
+    element: h(VerifyEmail, {
+      name: user.name,
+      verifyUrl: buildAppUrl(APP_PATHS.VERIFY_EMAIL, { token }),
+      expiresInHours,
+    }),
+  });
 }
 
 /** @param {Object} params `{ user }` */
@@ -142,7 +150,15 @@ function sendAccountExistsEmail({ user }) {
  * @throws {AppError} 501 khi chưa làm
  */
 function sendSetPasswordEmail({ user, token, expiresInMinutes }) {
-  return notImplemented('bai-03');
+  send({
+    to: user.email,
+    subject: 'Đặt mật khẩu để kích hoạt tài khoản',
+    element: h(SetPasswordEmail, {
+      name: user.name,
+      resetUrl: buildAppUrl(APP_PATHS.RESET_PASSWORD, { token }),
+      expiresInMinutes,
+    }),
+  });
 }
 
 /**

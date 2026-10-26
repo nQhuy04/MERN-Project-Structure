@@ -37,7 +37,12 @@ import { emailTokensService } from './emailTokens.service.js';
  * @throws {AppError} 501 khi chưa làm
  */
 async function sendVerification(user) {
-  return notImplemented('bai-03');
+  const token = await emailTokensService.issue({
+    userId: user._id,
+    type: EMAIL_TOKEN_TYPES.VERIFY_EMAIL,
+    ttlMs: VERIFY_EMAIL_TTL_MS,
+  });
+  emailService.sendVerifyEmail({ user, token, expiresInHours: VERIFY_EMAIL_TTL_HOURS });
 }
 
 /**
@@ -60,7 +65,20 @@ async function sendVerification(user) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function sendSetPassword(user) {
-  return notImplemented('bai-03');
+  await emailTokensService.revokeAll({
+    userId: user._id,
+    type: EMAIL_TOKEN_TYPES.VERIFY_EMAIL,
+  });
+  const token = await emailTokensService.issue({
+    userId: user._id,
+    type: EMAIL_TOKEN_TYPES.RESET_PASSWORD,
+    ttlMs: RESET_PASSWORD_TTL_MS,
+  });
+  emailService.sendSetPasswordEmail({
+    user,
+    token,
+    expiresInMinutes: RESET_PASSWORD_TTL_MINUTES,
+  });
 }
 
 /**
@@ -77,19 +95,17 @@ async function assertRegistrationEnabled() {
 }
 
 /**
- * **[BÀI 02]** Đăng ký tài khoản mới (chưa kích hoạt).
+ * **[BÀI 02–03]** Đăng ký tài khoản và xử lý email đã tồn tại.
  *
- * Các bước cho bài 02 — chỉ lo trường hợp **email chưa có ai dùng**:
+ * Các bước:
  * 1. `await assertRegistrationEnabled()` — Super Admin có thể tắt đăng ký (bài 09).
  * 2. Hash mật khẩu bằng `hashPassword` (đã import sẵn). Hash **trước** khi tra email, và hash cả
  *    khi cuối cùng không dùng tới: bcrypt chậm có chủ đích, nếu chỉ hash ở nhánh "email mới" thì
  *    thời gian phản hồi của hai nhánh lệch nhau rõ rệt và kẻ tấn công dò được email nào đã đăng ký.
- * 3. `usersService.findByEmail(email)` — chưa có ai dùng thì gọi `usersService.createLocalUser`
- *    với `{ email, name, passwordHash }` rồi `return`.
- * 4. Không trả về gì (controller tự trả thông điệp chung).
- *
- * **Bài 03 sẽ bổ sung** vào chính hàm này: gửi email xác thực sau khi tạo tài khoản, và xử lý hai
- * trường hợp email đã tồn tại (đã kích hoạt / chưa kích hoạt). Bài 02 cứ để nguyên phần đó.
+ * 3. Email mới → tạo user rồi gửi email xác thực.
+ * 4. Email đã kích hoạt → báo chủ email, không thay đổi tài khoản.
+ * 5. Email chưa kích hoạt → không ghi đè mật khẩu; hủy token xác thực cũ và gửi link đặt mật khẩu.
+ * 6. Controller trả cùng thông điệp cho mọi nhánh để không tiết lộ trạng thái email.
  *
  * @param {Object} input dữ liệu đã validate
  * @param {string} input.email
@@ -103,8 +119,15 @@ async function register({ email, name, password }) {
   const passwordHash = await hashPassword(password);
   const existingUser = await usersService.findByEmail(email);
   if (!existingUser) {
-    await usersService.createLocalUser({ email, name, passwordHash });
+    const user = await usersService.createLocalUser({ email, name, passwordHash });
+    await sendVerification(user);
+    return;
   }
+  if (existingUser.emailVerifiedAt) {
+    emailService.sendAccountExistsEmail({ user: existingUser });
+    return;
+  }
+  await sendSetPassword(existingUser);
 }
 
 /**
@@ -129,7 +152,20 @@ async function register({ email, name, password }) {
  * @throws {AppError} 400 TOKEN_INVALID khi token sai, hết hạn hoặc đã dùng
  */
 async function verifyEmail({ token }) {
-  return notImplemented('bai-03');
+  const emailToken = await emailTokensService.consume({
+    token,
+    type: EMAIL_TOKEN_TYPES.VERIFY_EMAIL,
+  });
+  if (!emailToken) {
+    throw new AppError({
+      statusCode: 400,
+      code: ERROR_CODES.TOKEN_INVALID,
+      message: 'Liên kết xác thực không hợp lệ hoặc đã hết hạn',
+    });
+  }
+
+  const user = await usersService.markEmailVerified(emailToken.userId);
+  if (user) emailService.sendWelcomeEmail({ user });
 }
 
 /**
@@ -146,7 +182,9 @@ async function verifyEmail({ token }) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function resendVerification({ email }) {
-  return notImplemented('bai-03');
+  const user = await usersService.findByEmail(email);
+  if (!user || user.emailVerifiedAt) return;
+  await sendVerification(user);
 }
 
 /**

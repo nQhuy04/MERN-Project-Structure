@@ -111,7 +111,11 @@ async function createLocalUser({ email, name, passwordHash }) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function markEmailVerified(userId, { session } = {}) {
-  return notImplemented('bai-03');
+  return User.findOneAndUpdate(
+    { _id: userId, emailVerifiedAt: null },
+    { $set: { emailVerifiedAt: new Date() } },
+    { returnDocument: 'after', runValidators: true, session },
+  );
 }
 
 /**
