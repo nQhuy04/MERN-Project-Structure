@@ -8,8 +8,8 @@
 - [x] Bài 00 — Chuẩn bị môi trường
 - [x] Bài 01 — Đọc hiểu kiến trúc
 - [x] Bài 02 — Đăng ký tài khoản
-- [ ] Bài 03 — Email & xác thực tài khoản
-- [ ] Bài 04 — Đăng nhập
+- [x] Bài 03 — Email & xác thực tài khoản
+- [x] Bài 04 — Đăng nhập
 - [ ] Bài 05 — Bảo vệ route & phân quyền
 - [ ] Bài 06 — Refresh token & đăng xuất
 - [ ] Bài 07 — Quản lý phiên đăng nhập

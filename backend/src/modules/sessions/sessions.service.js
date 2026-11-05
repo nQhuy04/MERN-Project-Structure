@@ -1,5 +1,5 @@
 // check-conventions: allow-unused-imports — import dưới đây là gợi ý cho bài 04, 06, 07.
-import mongoose from 'mongoose';
+import mongoose, { now } from 'mongoose';
 import { AppError } from '../../shared/errors/AppError.js';
 import { ERROR_CODES } from '../../shared/errors/errorCodes.js';
 import { notImplemented } from '../../shared/errors/notImplemented.js';
@@ -51,7 +51,18 @@ function buildRefreshToken(sessionId, secret) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function create({ userId, userAgent = '', ip = '' }) {
-  return notImplemented('bai-04');
+  const secret = generateToken();
+  const now = new Date();
+  const session = await Session.create({
+    userId,
+    secretHash: hashToken(secret),
+    userAgent: userAgent.slice(0, USER_AGENT_MAX_LENGTH),
+    ip,
+    lastUsedAt: now,
+    expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS),
+  });
+
+  return { session, refreshToken: buildRefreshToken(session._id, secret) };
 }
 
 /**

@@ -78,7 +78,12 @@ async function resendVerification(req, res) {
  * thế của cookie `httpOnly` biến mất.
  */
 async function login(req, res) {
-  return notImplemented('bai-04');
+  const { accessToken, refreshToken, user } = await authService.login(
+    req.validated.body,
+    getClientInfo(req),
+  );
+  setRefreshTokenCookie(res, refreshToken);
+  sendSuccess(res, { accessToken, user }, 'Đăng nhập thành công');
 }
 
 /**

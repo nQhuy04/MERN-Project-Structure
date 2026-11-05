@@ -58,7 +58,8 @@ export async function resendVerification(body) {
  * @throws {ApiError} INVALID_CREDENTIALS | EMAIL_NOT_VERIFIED | ACCOUNT_LOCKED
  */
 export async function login(body) {
-  return notImplemented('bai-04');
+  const response = await http.post('/auth/login', body, { skipAuthRefresh: true });
+  return response.data.data;
 }
 
 /**

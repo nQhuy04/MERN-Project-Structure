@@ -211,7 +211,18 @@ async function resendVerification({ email }) {
  * @throws {AppError} 400 INVALID_CREDENTIALS
  */
 async function verifyCredentials(email, password) {
-  return notImplemented('bai-04');
+  const user = await usersService.findByEmailWithPassword(email);
+  const passwordHash = user?.passwordHash ?? (await getDummyPasswordHash());
+
+  const isPasswordValid = await verifyPassword(password, passwordHash);
+  if (!user?.passwordHash || !isPasswordValid) {
+    throw new AppError({
+      statusCode: 400,
+      code: ERROR_CODES.INVALID_CREDENTIALS,
+      message: 'Email hoặc mật khẩu không đúng',
+    });
+  }
+  return user;
 }
 
 /**
@@ -231,7 +242,20 @@ async function verifyCredentials(email, password) {
  * @throws {AppError} 403 ACCOUNT_LOCKED | 403 EMAIL_NOT_VERIFIED | 501 khi chưa làm
  */
 function assertCanSignIn(user) {
-  return notImplemented('bai-04');
+  if (user.lockedAt) {
+    throw new AppError({
+      statusCode: 403,
+      code: ERROR_CODES.ACCOUNT_LOCKED,
+      message: 'Tài khoản đã bị khoá. Vui lòng liên hệ quản trị viên',
+    });
+  }
+  if (!user.emailVerifiedAt) {
+    throw new AppError({
+      statusCode: 403,
+      code: ERROR_CODES.EMAIL_NOT_VERIFIED,
+      message: 'Tài khoản chưa được kích hoạt. Vui lòng xác thực email',
+    });
+  }
 }
 
 /**
@@ -254,7 +278,17 @@ function assertCanSignIn(user) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function startSession(user, { userAgent, ip }) {
-  return notImplemented('bai-04');
+  const { session, refreshToken } = await sessionsService.create({
+    userId: user._id,
+    userAgent,
+    ip,
+  });
+  const signedInUser = await usersService.recordLogin(user._id);
+  return {
+    accessToken: signAccessToken({ userId: user._id, sessionId: session._id }),
+    refreshToken,
+    user: signedInUser,
+  };
 }
 
 /**
@@ -269,7 +303,9 @@ async function startSession(user, { userAgent, ip }) {
  * @throws {AppError} 400 INVALID_CREDENTIALS | 403 ACCOUNT_LOCKED | 403 EMAIL_NOT_VERIFIED
  */
 async function login({ email, password }, client) {
-  return notImplemented('bai-04');
+  const user = await verifyCredentials(email, password);
+  assertCanSignIn(user);
+  return await startSession(user, client);
 }
 
 /**

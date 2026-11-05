@@ -16,5 +16,8 @@ import { useAuthStore } from '@/features/auth/store/authStore';
 export function useLogin() {
   const setSession = useAuthStore((state) => state.setSession);
 
-  return useMutation({ mutationFn: login });
+  return useMutation({
+    mutationFn: login,
+    onSuccess: (session) => setSession(session),
+  });
 }

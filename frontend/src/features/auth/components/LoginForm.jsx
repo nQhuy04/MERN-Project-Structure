@@ -33,7 +33,9 @@ export function LoginForm() {
    * `?redirect=` hoặc dashboard khi store có user.
    */
   const onSubmit = (values) => {
-    notImplemented('bai-04');
+    loginMutation.mutate(values, {
+      onError: (error) => applyServerErrors(error, setError, FIELD_NAMES),
+    });
   };
 
   const isEmailNotVerified = loginMutation.error?.code === ERROR_CODES.EMAIL_NOT_VERIFIED;
