@@ -29,7 +29,10 @@ export function ProfileForm() {
    * `applyServerErrors(error, setError, ['name'])`.
    */
   const onSubmit = (values) => {
-    notImplemented('bai-05');
+    updateMutation.mutate(values, {
+      onSuccess: (body) => toast.success(body.message),
+      onError: (error) => applyServerErrors(error, setError, ['name']),
+    });
   };
 
   return (

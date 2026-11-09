@@ -168,7 +168,11 @@ async function recordLogin(userId) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function updateProfile(userId, { name }) {
-  return notImplemented('bai-05');
+  return User.findByIdAndUpdate(
+    userId,
+    { $set: { name } },
+    { returnDocument: 'after', runValidators: true },
+  );
 }
 
 /**

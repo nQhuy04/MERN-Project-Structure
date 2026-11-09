@@ -25,5 +25,10 @@ export function ProtectedRoute() {
   const location = useLocation();
 
   // TODO(bai-05): thay dòng dưới bằng logic thật.
-  return currentUser && location ? <Outlet /> : <Outlet />;
+  if (!currentUser) {
+    const redirect = `${location.pathname}${location.search}`;
+    const params = new URLSearchParams({ redirect });
+    return <Navigate to={`${ROUTES.AUTH.LOGIN}?${params}`} replace />;
+  }
+  return <Outlet />;
 }

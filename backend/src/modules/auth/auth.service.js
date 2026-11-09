@@ -336,7 +336,35 @@ async function login({ email, password }, client) {
  * @throws {AppError} 401 AUTH_TOKEN_INVALID khi phiên/user không còn | 403 ACCOUNT_LOCKED
  */
 async function resolveAccessToken(accessToken) {
-  return notImplemented('bai-05');
+  const { sub: userId, sid: sessionId } = verifyAccessToken(accessToken);
+
+  const [session, user] = await Promise.all([
+    sessionsService.findActive({ sessionId, userId }),
+    usersService.findById(userId),
+  ]);
+
+  if (!session || !user) {
+    throw new AppError({
+      statusCode: 401,
+      code: ERROR_CODES.AUTH_TOKEN_INVALID,
+      message: 'Phiên đăng nhập đã hết hạn hoặc bị thu hồi',
+    });
+  }
+
+  if (user.lockedAt) {
+    throw new AppError({
+      statusCode: 403,
+      code: ERROR_CODES.ACCOUNT_LOCKED,
+      message: 'Tài khoản đã bị khoá. Vui lòng liên hệ quản trị viên',
+    });
+  }
+
+  return {
+    userId: String(user._id),
+    sessionId: String(session._id),
+    role: user.role,
+    user,
+  };
 }
 
 /**

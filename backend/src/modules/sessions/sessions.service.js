@@ -84,7 +84,11 @@ async function create({ userId, userAgent = '', ip = '' }) {
  * @throws {AppError} 501 khi chưa làm
  */
 async function findActive({ sessionId, userId }) {
-  return notImplemented('bai-05');
+  return await Session.findOne({
+    _id: sessionId,
+    userId,
+    expiresAt: mongoose.trusted({ $gt: new Date() }),
+  });
 }
 
 /**

@@ -14,5 +14,5 @@ export function useUpdateProfile() {
   const setUser = useAuthStore((state) => state.setUser);
 
   // TODO(bai-05): thêm `onSuccess: (body) => setUser(body.data)`.
-  return useMutation({ mutationFn: updateMe });
+  return useMutation({ mutationFn: updateMe, onSuccess: (body) => setUser(body.data) });
 }

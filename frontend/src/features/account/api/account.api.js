@@ -9,7 +9,8 @@ import { notImplemented } from '@/shared/lib/practice';
  * @returns {Promise} resolve `{ message, data: user }`
  */
 export async function updateMe(body) {
-  return notImplemented('bai-05');
+  const response = await http.patch('/users/me', body);
+  return response.data;
 }
 
 /**

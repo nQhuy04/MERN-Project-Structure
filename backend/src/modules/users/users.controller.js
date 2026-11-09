@@ -10,7 +10,7 @@ import { usersService } from './users.service.js';
  * nên chỉ cần `sendSuccess(res, <user đó>)` — không cần truy vấn thêm, không cần message.
  */
 async function getMe(req, res) {
-  return notImplemented('bai-05');
+  sendSuccess(res, req.auth.user);
 }
 
 /**
@@ -19,7 +19,8 @@ async function getMe(req, res) {
  * `sendSuccess(res, user, 'Cập nhật hồ sơ thành công')`.
  */
 async function updateMe(req, res) {
-  return notImplemented('bai-05');
+  const user = await usersService.updateProfile(req.auth.userId, req.validated.body);
+  sendSuccess(res, user, 'Cập nhật hồ sơ thành công');
 }
 
 /**

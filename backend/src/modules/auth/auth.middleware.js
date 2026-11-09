@@ -27,5 +27,17 @@ const BEARER_PREFIX = 'Bearer ';
  * @throws {AppError} 401 AUTH_TOKEN_INVALID | 501 khi chưa làm
  */
 export async function authenticate(req, _res, next) {
-  return notImplemented('bai-05');
+  const header = req.get('authorization') ?? '';
+  const accessToken = header.startsWith(BEARER_PREFIX) ? header.slice(BEARER_PREFIX.length) : '';
+
+  if (!accessToken) {
+    throw new AppError({
+      statusCode: 401,
+      code: ERROR_CODES.AUTH_TOKEN_INVALID,
+      message: 'Vui lòng đăng nhập',
+    });
+  }
+
+  req.auth = await authService.resolveAccessToken(accessToken);
+  next();
 }

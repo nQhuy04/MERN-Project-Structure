@@ -23,5 +23,7 @@ export function RoleGuard({ roles }) {
   const currentUser = useCurrentUser();
 
   // TODO(bai-05): thay dòng dưới bằng logic thật.
-  return currentUser && roles ? <Outlet /> : <ForbiddenPage />;
+  if (!currentUser || !roles.includes(currentUser.role)) return <ForbiddenPage />;
+
+  return <Outlet />;
 }

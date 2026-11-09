@@ -31,6 +31,16 @@ import { notImplemented } from '../errors/notImplemented.js';
  */
 export function authorize(...allowedRoles) {
   return (req, _res, next) => {
-    notImplemented('bai-05');
+    if (!req.auth) {
+      throw new Error('authorize() phải được đặt sau authenticate');
+    }
+    if (!allowedRoles.includes(req.auth.role)) {
+      throw new AppError({
+        statusCode: 403,
+        code: ERROR_CODES.FORBIDDEN,
+        message: 'Bạn không có quyền thực hiện thao tác này',
+      });
+    }
+    next();
   };
 }
